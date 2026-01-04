@@ -36,6 +36,8 @@ WORKDIR /app
 COPY requirements.txt .
 # Install PyTorch specifically for CUDA 12.4 first to ensure it matches base image logic if needed
 # But standard pip install usually handles it. Using specific index for torch if critical.
+# Upgrade pip to fix resolver assertion errors in older versions
+RUN pip3 install --no-cache-dir --upgrade pip
 RUN pip3 install --no-cache-dir -r requirements.txt
 
 # Copy Backend Code
