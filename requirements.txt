@@ -6,8 +6,8 @@ websockets>=12.0
 
 # AI & Processing
 whisperx==3.7.4
-torch==2.3.0
-torchaudio==2.3.0
+torch>=2.3.0
+torchaudio>=2.3.0
 # Pinned for WhisperX compatibility
 pyannote.audio==3.3.2 
 ctranslate2>=4.5.0
