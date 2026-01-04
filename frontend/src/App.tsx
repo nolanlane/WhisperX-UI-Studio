@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
-import { Upload, FileAudio, Check, AlertCircle, Terminal, Play, Settings } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Upload, FileAudio, Terminal, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // Simplified Component Architecture for the "Studio" feel
