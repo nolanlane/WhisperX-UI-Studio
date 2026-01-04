@@ -1,12 +1,12 @@
 # ==========================================
 # Stage 1: Build Frontend
 # ==========================================
-FROM node:20-alpine as frontend-builder
+FROM node:20-alpine AS frontend-builder
 WORKDIR /app/frontend
 # Copy package files (we will create these later, but assuming they exist for Docker build flow)
 COPY frontend/package*.json ./
 # Install deps (using --legacy-peer-deps if needed for React 19 betas)
-RUN npm install
+RUN npm install --legacy-peer-deps
 COPY frontend/ ./
 # Build (output to /app/frontend/dist)
 RUN npm run build
