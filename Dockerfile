@@ -3,10 +3,10 @@
 # ==========================================
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app/frontend
-# Copy package files (we will create these later, but assuming they exist for Docker build flow)
+# Copy package files
 COPY frontend/package*.json ./
-# Install deps (using --legacy-peer-deps if needed for React 19 betas)
-RUN npm install --legacy-peer-deps
+# Install deps with cache mount (BuildKit only)
+RUN --mount=type=cache,target=/root/.npm npm install --legacy-peer-deps
 COPY frontend/ ./
 # Build (output to /app/frontend/dist)
 RUN npm run build
@@ -34,11 +34,19 @@ WORKDIR /app
 
 # Python Package Management
 COPY requirements.txt .
-# Install PyTorch specifically for CUDA 12.4 first to ensure it matches base image logic if needed
-# But standard pip install usually handles it. Using specific index for torch if critical.
-# Upgrade pip to fix resolver assertion errors in older versions
+# Upgrade pip
 RUN pip3 install --no-cache-dir --upgrade pip
-RUN pip3 install --no-cache-dir -r requirements.txt
+
+# Install PyTorch with CUDA support first (pre-built wheels are much faster)
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip3 install --no-cache-dir --index-url https://download.pytorch.org/whl/cu124 \
+    torch~=2.8.0 \
+    torchaudio~=2.8.0 \
+    --extra-index-url https://pypi.org/simple
+
+# Install remaining dependencies
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip3 install --no-cache-dir -r requirements.txt
 
 # Copy Backend Code
 COPY backend ./backend
