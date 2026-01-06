@@ -23,7 +23,7 @@ The goal is to replace the bulky Gradio interface with a decoupled architecture:
 - **Visuals**: Framer Motion (micro-interactions)
 
 ### Deployment (Docker)
-- **Image**: NVIDIA CUDA 12.8 base (compatible with PyTorch 2.9 stable)
+- **Image**: NVIDIA CUDA 12.8 base (compatible with PyTorch 2.8 stable)
 - **Orchestration**: Single-container deployment (FastAPI serving React static build)
 - **Storage**: Dynamic volume mapping (Vast.ai compatibility)
 
