@@ -14,7 +14,7 @@ RUN npm run build
 # ==========================================
 # Stage 2: Runtime Environment
 # ==========================================
-FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+FROM nvidia/cuda:12.8.0-cudnn-runtime-ubuntu22.04
 
 # Remove interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive

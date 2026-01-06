@@ -39,7 +39,7 @@ export default function App() {
         if (!taskId) return
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-        const wsUrl = `${protocol}//${window.location.host}/api/transcribe/ws/${taskId}`
+        const wsUrl = `${protocol}//${window.location.host}/api/ws/${taskId}`
         const ws = new WebSocket(wsUrl)
 
         ws.onmessage = (event) => {
