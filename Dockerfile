@@ -43,6 +43,8 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 # Copy Backend Code
 COPY backend ./backend
 COPY start.py .
+COPY onstart.sh .
+RUN chmod +x onstart.sh
 
 # Copy Built Frontend Static Files
 COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
@@ -53,6 +55,10 @@ ENV PYTHONUNBUFFERED=1
 
 # Expose Port
 EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:8000/health || exit 1
 
 # Start
 CMD ["python3", "start.py"]

@@ -16,6 +16,7 @@ export default function App() {
 
     // Settings
     const [modelSize, setModelSize] = useState("large-v3")
+    const [batchSize, setBatchSize] = useState(16)
     const [diarize, setDiarize] = useState(false)
     const [hfToken, setHfToken] = useState("")
 
@@ -38,26 +39,71 @@ export default function App() {
     useEffect(() => {
         if (!taskId) return
 
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-        const wsUrl = `${protocol}//${window.location.host}/api/ws/${taskId}`
-        const ws = new WebSocket(wsUrl)
+        let ws: WebSocket | null = null
+        let heartbeatInterval: number | null = null
+        let reconnectAttempts = 0
+        const maxReconnectAttempts = 5
 
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data)
-            console.log("WS Update:", data)
+        const connectWebSocket = () => {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+            const wsUrl = `${protocol}//${window.location.host}/api/ws/${taskId}`
+            ws = new WebSocket(wsUrl)
 
-            if (data.status) setStatus(data.status)
-            if (data.progress) setProgress(data.progress)
-            if (data.message) setStatusMsg(data.message)
-            if (data.result) setTranscript(data.result)
-            if (data.error) {
-                setStatus("error")
-                setStatusMsg(data.error)
+            ws.onopen = () => {
+                reconnectAttempts = 0
+                // Send ping every 25 seconds to keep connection alive
+                heartbeatInterval = setInterval(() => {
+                    if (ws?.readyState === WebSocket.OPEN) {
+                        ws.send("ping")
+                    }
+                }, 25000)
+            }
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data)
+                console.log("WS Update:", data)
+
+                // Handle heartbeat response
+                if (data.type === "heartbeat" || data.type === "pong") {
+                    return
+                }
+
+                if (data.status) setStatus(data.status)
+                if (data.progress) setProgress(data.progress)
+                if (data.message) setStatusMsg(data.message)
+                if (data.result) setTranscript(data.result)
+                if (data.error) {
+                    setStatus("error")
+                    setStatusMsg(data.error)
+                }
+            }
+
+            ws.onerror = (error) => {
+                console.error("WebSocket error:", error)
+            }
+
+            ws.onclose = () => {
+                if (heartbeatInterval) {
+                    clearInterval(heartbeatInterval)
+                    heartbeatInterval = null
+                }
+
+                // Attempt reconnection if task is still active
+                if (reconnectAttempts < maxReconnectAttempts && status !== "completed" && status !== "error") {
+                    reconnectAttempts++
+                    console.log(`Reconnecting... attempt ${reconnectAttempts}/${maxReconnectAttempts}`)
+                    setTimeout(connectWebSocket, 3000 * reconnectAttempts) // Exponential backoff
+                }
             }
         }
 
-        return () => ws.close()
-    }, [taskId])
+        connectWebSocket()
+
+        return () => {
+            if (heartbeatInterval) clearInterval(heartbeatInterval)
+            if (ws) ws.close()
+        }
+    }, [taskId, status])
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
@@ -70,23 +116,42 @@ export default function App() {
         const formData = new FormData()
         formData.append("file", file)
         formData.append("model_size", modelSize)
+        formData.append("batch_size", String(batchSize))
         formData.append("diarize", String(diarize))
         formData.append("hf_token", hfToken)
 
-        try {
-            const res = await fetch("/api/transcribe/upload", {
-                method: "POST",
-                body: formData
-            })
-            const data = await res.json()
-            setTaskId(data.task_id)
-            if (data.status === "queued") {
-                setStatus("queued")
-                setStatusMsg("Queued for processing...")
+        let retryCount = 0
+        const maxRetries = 3
+
+        while (retryCount <= maxRetries) {
+            try {
+                const res = await fetch("/api/transcribe", {
+                    method: "POST",
+                    body: formData
+                })
+                
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+                }
+                
+                const data = await res.json()
+                setTaskId(data.task_id)
+                if (data.status === "queued") {
+                    setStatus("queued")
+                    setStatusMsg("Queued for processing...")
+                }
+                return // Success, exit retry loop
+            } catch (err) {
+                retryCount++
+                if (retryCount <= maxRetries) {
+                    const delay = Math.pow(2, retryCount) * 1000 // Exponential backoff: 2s, 4s, 8s
+                    setStatusMsg(`Upload failed, retrying in ${delay/1000}s... (${retryCount}/${maxRetries})`)
+                    await new Promise(resolve => setTimeout(resolve, delay))
+                } else {
+                    setStatus("error")
+                    setStatusMsg(`Upload failed after ${maxRetries} attempts: ${err instanceof Error ? err.message : 'Unknown error'}`)
+                }
             }
-        } catch (err) {
-            setStatus("error")
-            setStatusMsg("Upload failed")
         }
     }
 
@@ -182,6 +247,20 @@ export default function App() {
                                         <option value="small">Small</option>
                                         <option value="medium">Medium</option>
                                         <option value="large-v3">Large v3 (Best)</option>
+                                    </select>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-xs font-medium uppercase text-muted-foreground">Batch Size</label>
+                                    <select
+                                        className="w-full bg-secondary rounded-md p-2 text-sm border-none focus:ring-1 focus:ring-primary"
+                                        value={batchSize}
+                                        onChange={(e) => setBatchSize(Number(e.target.value))}
+                                    >
+                                        <option value="1">1 (Low VRAM)</option>
+                                        <option value="8">8 (Balanced)</option>
+                                        <option value="16">16 (High VRAM)</option>
+                                        <option value="32">32 (Maximum)</option>
                                     </select>
                                 </div>
 

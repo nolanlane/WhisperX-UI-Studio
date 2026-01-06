@@ -77,3 +77,31 @@ async def burn_subtitles(video: UploadFile = File(...), subtitle: UploadFile = F
         return FileResponse(output_path, filename=output_path.name)
     except subprocess.CalledProcessError as e:
         return {"error": "FFmpeg failed", "details": e.stderr.decode() if e.stderr else str(e)}
+
+@router.post("/extract_audio")
+async def extract_audio(file: UploadFile = File(...), format: str = "mp3"):
+    task_id = str(uuid.uuid4())
+    temp_dir = Path(os.environ.get("UMS_STORAGE", "/tmp")) / "temp"
+    output_dir = get_storage_path()
+    
+    input_path = temp_dir / f"{task_id}_{file.filename}"
+    output_path = output_dir / f"{Path(file.filename).stem}_audio.{format}"
+    
+    with open(input_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    # FFmpeg command to extract audio
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", str(input_path),
+        "-vn",  # No video
+        "-acodec", "libmp3lame" if format == "mp3" else "aac",
+        "-ab", "192k",
+        str(output_path)
+    ]
+    
+    try:
+        subprocess.run(cmd, check=True, capture_output=True)
+        return FileResponse(output_path, filename=output_path.name)
+    except subprocess.CalledProcessError as e:
+        return {"error": "FFmpeg failed", "details": e.stderr.decode() if e.stderr else str(e)}

@@ -14,7 +14,11 @@ from backend.core.cleanup import CleanupScheduler
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("WhisperX-Studio")
 
-app = FastAPI(title="WhisperX-Studio API")
+app = FastAPI(
+    title="WhisperX-Studio API",
+    # Configure max upload size (in bytes) - 2GB limit for audio/video files
+    max_request_size=2147483648
+)
 
 # Initialize queue and cleanup systems
 task_queue = TaskQueue(max_queue_size=10)

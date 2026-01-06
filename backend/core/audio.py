@@ -16,7 +16,7 @@ def flush_vram():
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-def process_transcription(file_path: str, model_size: str, language: str, diarize: bool, hf_token: str, progress_callback):
+def process_transcription(file_path: str, model_size: str, batch_size: int, language: str, diarize: bool, hf_token: str, progress_callback):
     """
     Core synchronized logic for WhisperX.
     progress_callback(stage_str, percent_int, message_str)
@@ -33,7 +33,7 @@ def process_transcription(file_path: str, model_size: str, language: str, diariz
         # Transcribe
         progress_callback("transcribing", 30, "Transcribing audio...")
         audio = whisperx.load_audio(file_path)
-        result = model.transcribe(audio, batch_size=16, language=None if language == "auto" else language)
+        result = model.transcribe(audio, batch_size=batch_size, language=None if language == "auto" else language)
         
         # Cleanup Model
         del model

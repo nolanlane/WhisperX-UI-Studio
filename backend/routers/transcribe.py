@@ -21,6 +21,7 @@ active_connections: Dict[str, WebSocket] = {}
 async def upload_file(
     file: UploadFile,
     model_size: str = "large-v3",
+    batch_size: int = 16,
     language: str = "auto",
     diarize: bool = False,
     hf_token: str = ""
@@ -40,6 +41,7 @@ async def upload_file(
         "task_id": task_id,
         "file_path": str(file_path),
         "model_size": model_size,
+        "batch_size": batch_size,
         "language": language,
         "diarize": diarize,
         "hf_token": hf_token,
@@ -57,6 +59,7 @@ async def process_queued_task(task_data: dict):
     task_id = task_data["task_id"]
     file_path = task_data["file_path"]
     model_size = task_data["model_size"]
+    batch_size = task_data.get("batch_size", 16)
     language = task_data["language"]
     diarize = task_data["diarize"]
     hf_token = task_data["hf_token"]
@@ -78,7 +81,7 @@ async def process_queued_task(task_data: dict):
         result = await loop.run_in_executor(
             None, 
             process_transcription, 
-            file_path, model_size, language, diarize, hf_token, progress_callback
+            file_path, model_size, batch_size, language, diarize, hf_token, progress_callback
         )
         
         await notify_client(task_id, {"status": "completed", "progress": 100, "result": result})
@@ -91,12 +94,31 @@ async def process_queued_task(task_data: dict):
 async def websocket_endpoint(websocket: WebSocket, task_id: str):
     await websocket.accept()
     active_connections[task_id] = websocket
+    logger.info(f"WebSocket connected for task {task_id}")
+    
     try:
         while True:
-            # Keep connection alive
-            await websocket.receive_text()
+            # Wait for message or timeout (heartbeat check every 30 seconds)
+            try:
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+                # Respond to ping with pong
+                if data == "ping":
+                    await websocket.send_json({"type": "pong"})
+            except asyncio.TimeoutError:
+                # Send heartbeat to client
+                try:
+                    await websocket.send_json({"type": "heartbeat"})
+                except Exception:
+                    # Client disconnected
+                    break
     except WebSocketDisconnect:
-        del active_connections[task_id]
+        logger.info(f"WebSocket disconnected for task {task_id}")
+    except Exception as e:
+        logger.error(f"WebSocket error for task {task_id}: {e}")
+    finally:
+        if task_id in active_connections:
+            del active_connections[task_id]
+        logger.info(f"WebSocket cleaned up for task {task_id}")
 
 async def notify_client(task_id: str, data: dict):
     if task_id in active_connections:
